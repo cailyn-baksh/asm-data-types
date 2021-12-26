@@ -1,0 +1,101 @@
+#!/bin/bash
+
+print_help() {
+	echo "Usage: $0 [options] FILE"
+	echo "Preprocesses an assembly source file"
+	printf "\n"
+
+	echo "Options:"
+	printf "  -h\tDisplay this help message\n"
+
+	printf "\n"
+}
+
+# Process options
+OPTIND=1
+while getopts "h" opt; do
+	case "$opt" in
+		h)
+			print_help
+			exit 0
+			;;
+		*)
+			;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -ne 1 ]; then
+	echo "Exactly 1 file must be specified"
+	exit 1
+fi
+
+read -d '' awkScript << 'EOF'
+BEGIN {
+	if (FILENAME ~ /\.s$/) {
+		# Only process .S files
+		exit 0
+	}
+
+	isStruct = 0
+	structName = ""
+	nOutLines = 0
+	memberCounter = 0
+}
+
+# Start of structure
+/^\s*STRUCT/ {
+	isStruct = 1
+	structName = $2
+	next
+}
+
+/^\s*END/ {
+	structFirstLine = ".macro " structName
+
+	for (i=0; i < memberCounter; ++i) {
+		split(structMembers[i], member, / /)
+
+		structFirstLine = structFirstLine " " member[2] "=" member[3]
+
+		structMemberLines[i*2] = ".set _struct_" structName "_" member[2] ", . - _struct_" structName "_begin"
+		structMemberLines[i*2+1] = "." member[1] " " member[2]
+	}
+
+	print structFirstLine
+	print "  .set _struct_" structName "_begin, ."
+
+	for (i=0; i < length(structMemberLines); ++i) {
+		print "  " structMemberLines[i]
+	}
+
+	print "  .set _struct_" structName "_size, . - _struct_" structName "_begin" 
+	print ".endm"
+
+	isStruct = 0
+	structName = ""
+	delete structMembers
+
+	next
+}
+
+# No processing on this line
+{
+	if (!isStruct) {
+		print
+	} else {
+		# Defines member of a struct
+		# $1 is the type, $2 is the name, $4 is the default value if $3 is '='
+	
+		if ($3 == "=") {
+			structMembers[memberCounter++] = $1 " " $2 " " $4
+		} else {
+			structMembers[memberCounter++] = $1 " " $2 " 0"
+		}
+	}
+}
+EOF
+
+awk "$awkScript" $1
+

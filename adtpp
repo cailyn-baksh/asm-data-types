@@ -6,18 +6,41 @@ print_help() {
 	printf "\n"
 
 	echo "Options:"
-	printf "  -h\tDisplay this help message\n"
+	printf "  -h     \tDisplay this help message\n"
+	printf "  -a ARCH\tTarget the specified architecture\n"
+	printf "  -o FILE\tPlace output in FILE. Default is stdout\n"
+	printf "  -p     \tRead input from the pipeline. FILE is ignored.\n"
 
 	printf "\n"
 }
 
+target_arch=$(uname -m)
+out_file=/dev/stdout
+pipe=false
+
 # Process options
 OPTIND=1
-while getopts "h" opt; do
+while getopts "ha:o:p" opt; do
 	case "$opt" in
 		h)
 			print_help
 			exit 0
+			;;
+		a)
+			target_arch=$OPTARG
+			;;
+		o)
+			if [ $OPTARG = "stdout" ]; then
+				# output file is already /dev/stdout
+				:
+			elif [ $OPTARG = "stderr" ]; then
+				out_file=/dev/stderr
+			else
+				out_file=$OPTARG
+			fi
+			;;
+		p)
+			pipe=true
 			;;
 		*)
 			;;
@@ -26,17 +49,20 @@ done
 
 shift $((OPTIND-1))
 
-if [ $# -ne 1 ]; then
+if [ $pipe = true ]; then
+	# Read from stdin
+	in_file="-"
+elif [ $# -ne 1 ]; then
 	echo "Exactly 1 file must be specified"
 	exit 1
+else
+	in_file=$1
 fi
 
 read -d '' awkScript << 'EOF'
 BEGIN {
-	if (FILENAME ~ /\.s$/) {
-		# Only process .S files
-		exit 0
-	}
+	print ".include \\\"" includePath "/common.inc\\\""
+	print ".include \\\"" includePath "/" architecture ".inc\\\""
 
 	isStruct = 0
 	structName = ""
@@ -97,5 +123,5 @@ BEGIN {
 }
 EOF
 
-awk "$awkScript" $1
+awk -v includePath="$(dirname $(realpath $0))/include" -v architecture="$target_arch" "$awkScript" $in_file >$out_file
 

@@ -6,8 +6,10 @@ print_help() {
 	printf "\n"
 
 	echo "Options:"
-	printf "  -h     \tDisplay this help message\n"
 	printf "  -a ARCH\tTarget the specified architecture\n"
+	printf "  -e     \tEnable extended macros. This option produces output for the\n"
+	printf "         \tC preprocessor\n"
+	printf "  -h     \tDisplay this help message\n"
 	printf "  -o FILE\tPlace output in FILE. Default is stdout\n"
 	printf "  -p     \tRead input from the pipeline. FILE is ignored.\n"
 
@@ -15,6 +17,7 @@ print_help() {
 }
 
 target_arch=$(uname -m)
+extMacros=0
 out_file=/dev/stdout
 pipe=false
 
@@ -22,12 +25,15 @@ pipe=false
 OPTIND=1
 while getopts "ha:o:p" opt; do
 	case "$opt" in
+		a)
+			target_arch=$OPTARG
+			;;
+		e)
+			extMacros=1
+			;;
 		h)
 			print_help
 			exit 0
-			;;
-		a)
-			target_arch=$OPTARG
 			;;
 		o)
 			if [ $OPTARG = "stdout" ]; then
@@ -61,6 +67,10 @@ fi
 
 read -d '' awkScript << 'EOF'
 BEGIN {
+	if (extMacros) {
+		print ".set _ADTPP_EXT_MACROS, 1"
+	}
+
 	print ".include \\\"" includePath "/common.inc\\\""
 	print ".include \\\"" includePath "/" architecture ".inc\\\""
 
@@ -123,5 +133,5 @@ BEGIN {
 }
 EOF
 
-awk -v includePath="$(dirname $(realpath $0))/include" -v architecture="$target_arch" "$awkScript" $in_file >$out_file
+awk -v includePath="$(dirname $(realpath $0))/include" -v architecture="$target_arch" -v extMacros=$extMacros "$awkScript" $in_file >$out_file
 

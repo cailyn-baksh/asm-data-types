@@ -23,7 +23,7 @@ pipe=false
 
 # Process options
 OPTIND=1
-while getopts "ha:o:p" opt; do
+while getopts "a:eho:p" opt; do
 	case "$opt" in
 		a)
 			target_arch=$OPTARG
@@ -67,12 +67,15 @@ fi
 
 read -d '' awkScript << 'EOF'
 BEGIN {
+	includeDirectivePrefix = "."
+
 	if (extMacros) {
 		print ".set _ADTPP_EXT_MACROS, 1"
+		includeDirectivePrefix = "#"
 	}
 
-	print ".include \\\"" includePath "/common.inc\\\""
-	print ".include \\\"" includePath "/" architecture ".inc\\\""
+	print includeDirectivePrefix "include \\\"" includePath "/common.inc\\\""
+	#print includeDirectivePrefix "include \\\"" includePath "/" architecture ".inc\\\""
 
 	isStruct = 0
 	structName = ""

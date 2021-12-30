@@ -5,4 +5,8 @@ STRUCT Color
 	byte a = 1
 END
 
-mov r0,#5
+Color white 255, 255, 255
+Color pink 252, 118, 243
+Color blue 50, 154, 252
+
+mov r0,#SIZEOF_STRUCT(Color)
